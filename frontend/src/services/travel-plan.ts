@@ -9,7 +9,7 @@ import type { TravelPlanFilters } from './types/api.types';
 import type { TravelPlanApiResponse } from './types/travel-plan.types';
 
 class TravelPlanService {
-  private readonly baseUrl = '/travel-plans';
+  private readonly baseUrl = '/api/travel-plans';
 
   /**
    * Create a new travel plan
