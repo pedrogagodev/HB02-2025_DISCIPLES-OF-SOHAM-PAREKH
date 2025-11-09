@@ -34,7 +34,7 @@ export class GeminiService {
         temperature: 0.7,
         topP: 0.8,
         topK: 40,
-        maxOutputTokens: 4096,
+        maxOutputTokens: 16384, // Aumentado para suportar JSONs maiores
       },
     });
   }
@@ -44,6 +44,29 @@ export class GeminiService {
    */
   getCurrentModel(): string {
     return this.modelName;
+  }
+
+  /**
+   * Cria um modelo com as configurações otimizadas, tentando usar responseMimeType se disponível
+   */
+  private createModelWithConfig(modelName: string, useJSONMode: boolean = true): any {
+    const baseConfig: any = {
+      temperature: 0.7,
+      topP: 0.8,
+      topK: 40,
+      maxOutputTokens: 16384, // Aumentado para suportar JSONs maiores
+    };
+
+    // Adiciona responseMimeType se solicitado
+    // Nota: Se não for suportado pela versão da biblioteca, será ignorado ou causará erro na geração
+    if (useJSONMode) {
+      baseConfig.responseMimeType = 'application/json';
+    }
+
+    return this.genAI.getGenerativeModel({ 
+      model: modelName,
+      generationConfig: baseConfig,
+    });
   }
 
   /**
@@ -79,43 +102,51 @@ export class GeminiService {
     ].filter((model, index, self) => self.indexOf(model) === index); // Remove duplicatas
     
     for (const modelName of fallbackModels) {
-      try {
-        const model = this.genAI.getGenerativeModel({ 
-          model: modelName,
-          generationConfig: {
-            temperature: 0.7,
-            topP: 0.8,
-            topK: 40,
-            maxOutputTokens: 4096,
-          },
-        });
-        
-        console.log(`Tentando gerar plano de viagem com modelo: ${modelName}`);
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        const text = response.text();
-        
-        const jsonData = this.parseAndValidateJSON(text, 'vacation');
-        
-        // Atualiza o modelo atual se um fallback funcionou
-        if (modelName !== this.modelName) {
-          console.log(`Modelo ${modelName} funcionou! Atualizando modelo padrão.`);
-          this.modelName = modelName;
-          this.model = model;
-        }
-        
-        return jsonData;
-      } catch (error: any) {
-        // Se for erro 404 (modelo não encontrado), tenta o próximo
-        if (error.status === 404 || error.message?.includes('not found')) {
-          console.warn(`Modelo ${modelName} não disponível, tentando próximo...`);
-          continue;
-        }
-        // Para outros erros, loga e continua tentando
-        console.error(`Erro ao usar modelo ${modelName}:`, error.message);
-        if (modelName === fallbackModels[fallbackModels.length - 1]) {
-          // Último modelo falhou, lança o erro
-          throw new Error(`Failed to generate vacation plan. Todos os modelos falharam. Último erro: ${error.message}`);
+      // Tenta primeiro com JSON mode, depois sem
+      const jsonModeAttempts = [true, false];
+      
+      for (const useJSONMode of jsonModeAttempts) {
+        try {
+          const model = this.createModelWithConfig(modelName, useJSONMode);
+          
+          console.log(`Tentando gerar plano de viagem com modelo: ${modelName}${useJSONMode ? ' (JSON mode)' : ''}`);
+          const result = await model.generateContent(prompt);
+          const response = await result.response;
+          const text = response.text();
+          
+          const jsonData = this.parseAndValidateJSON(text, 'vacation');
+          
+          // Atualiza o modelo atual se um fallback funcionou
+          if (modelName !== this.modelName) {
+            console.log(`Modelo ${modelName} funcionou! Atualizando modelo padrão.`);
+            this.modelName = modelName;
+            this.model = model;
+          }
+          
+          return jsonData;
+        } catch (error: any) {
+          // Se for erro 404 (modelo não encontrado), tenta o próximo modelo
+          if (error.status === 404 || error.message?.includes('not found') || error.message?.includes('not available')) {
+            console.warn(`Modelo ${modelName} não disponível, tentando próximo...`);
+            break; // Sai do loop de jsonModeAttempts e vai para o próximo modelo
+          }
+          
+          // Se for erro de parsing e ainda temos jsonMode para tentar, continua
+          if (useJSONMode && (error.message?.includes('JSON') || error.message?.includes('parse'))) {
+            console.warn(`Erro ao parsear JSON com ${modelName} (JSON mode), tentando sem JSON mode...`);
+            continue; // Tenta sem JSON mode
+          }
+          
+          // Para outros erros, loga
+          console.error(`Erro ao usar modelo ${modelName}:`, error.message);
+          
+          // Se já tentou ambos os modos ou é o último modelo, lança o erro
+          if (!useJSONMode || modelName === fallbackModels[fallbackModels.length - 1]) {
+            if (modelName === fallbackModels[fallbackModels.length - 1]) {
+              throw new Error(`Failed to generate vacation plan. Todos os modelos falharam. Último erro: ${error.message}`);
+            }
+            break; // Vai para o próximo modelo
+          }
         }
       }
     }
@@ -136,43 +167,51 @@ export class GeminiService {
     ].filter((model, index, self) => self.indexOf(model) === index); // Remove duplicatas
     
     for (const modelName of fallbackModels) {
-      try {
-        const model = this.genAI.getGenerativeModel({ 
-          model: modelName,
-          generationConfig: {
-            temperature: 0.7,
-            topP: 0.8,
-            topK: 40,
-            maxOutputTokens: 4096,
-          },
-        });
-        
-        console.log(`Tentando gerar plano de relocação com modelo: ${modelName}`);
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        const text = response.text();
-        
-        const jsonData = this.parseAndValidateJSON(text, 'relocation');
-        
-        // Atualiza o modelo atual se um fallback funcionou
-        if (modelName !== this.modelName) {
-          console.log(`Modelo ${modelName} funcionou! Atualizando modelo padrão.`);
-          this.modelName = modelName;
-          this.model = model;
-        }
-        
-        return jsonData;
-      } catch (error: any) {
-        // Se for erro 404 (modelo não encontrado), tenta o próximo
-        if (error.status === 404 || error.message?.includes('not found')) {
-          console.warn(`Modelo ${modelName} não disponível, tentando próximo...`);
-          continue;
-        }
-        // Para outros erros, loga e continua tentando
-        console.error(`Erro ao usar modelo ${modelName}:`, error.message);
-        if (modelName === fallbackModels[fallbackModels.length - 1]) {
-          // Último modelo falhou, lança o erro
-          throw new Error(`Failed to generate relocation plan. Todos os modelos falharam. Último erro: ${error.message}`);
+      // Tenta primeiro com JSON mode, depois sem
+      const jsonModeAttempts = [true, false];
+      
+      for (const useJSONMode of jsonModeAttempts) {
+        try {
+          const model = this.createModelWithConfig(modelName, useJSONMode);
+          
+          console.log(`Tentando gerar plano de relocação com modelo: ${modelName}${useJSONMode ? ' (JSON mode)' : ''}`);
+          const result = await model.generateContent(prompt);
+          const response = await result.response;
+          const text = response.text();
+          
+          const jsonData = this.parseAndValidateJSON(text, 'relocation');
+          
+          // Atualiza o modelo atual se um fallback funcionou
+          if (modelName !== this.modelName) {
+            console.log(`Modelo ${modelName} funcionou! Atualizando modelo padrão.`);
+            this.modelName = modelName;
+            this.model = model;
+          }
+          
+          return jsonData;
+        } catch (error: any) {
+          // Se for erro 404 (modelo não encontrado), tenta o próximo modelo
+          if (error.status === 404 || error.message?.includes('not found') || error.message?.includes('not available')) {
+            console.warn(`Modelo ${modelName} não disponível, tentando próximo...`);
+            break; // Sai do loop de jsonModeAttempts e vai para o próximo modelo
+          }
+          
+          // Se for erro de parsing e ainda temos jsonMode para tentar, continua
+          if (useJSONMode && (error.message?.includes('JSON') || error.message?.includes('parse'))) {
+            console.warn(`Erro ao parsear JSON com ${modelName} (JSON mode), tentando sem JSON mode...`);
+            continue; // Tenta sem JSON mode
+          }
+          
+          // Para outros erros, loga
+          console.error(`Erro ao usar modelo ${modelName}:`, error.message);
+          
+          // Se já tentou ambos os modos ou é o último modelo, lança o erro
+          if (!useJSONMode || modelName === fallbackModels[fallbackModels.length - 1]) {
+            if (modelName === fallbackModels[fallbackModels.length - 1]) {
+              throw new Error(`Failed to generate relocation plan. Todos os modelos falharam. Último erro: ${error.message}`);
+            }
+            break; // Vai para o próximo modelo
+          }
         }
       }
     }
@@ -182,19 +221,34 @@ export class GeminiService {
 
   private parseAndValidateJSON(text: string, type: 'vacation' | 'relocation'): any {
     try {
+      // Remove markdown code blocks e outros caracteres indesejados
       let cleanText = text
-        .replace(/```json/g, '')
+        .replace(/```json/gi, '')
         .replace(/```/g, '')
+        .replace(/^[\s\S]*?(\{)/, '$1') // Remove tudo antes do primeiro {
+        .replace(/(\})[\s\S]*?$/, '$1') // Remove tudo depois do último }
         .trim();
 
+      // Tenta encontrar o JSON válido
       const jsonStart = cleanText.indexOf('{');
       const jsonEnd = cleanText.lastIndexOf('}');
       
-      if (jsonStart !== -1 && jsonEnd !== -1) {
-        cleanText = cleanText.slice(jsonStart, jsonEnd + 1);
+      if (jsonStart === -1 || jsonEnd === -1 || jsonEnd <= jsonStart) {
+        throw new Error('No valid JSON structure found in response');
       }
-
-      const parsed = JSON.parse(cleanText);
+      
+      cleanText = cleanText.slice(jsonStart, jsonEnd + 1);
+      
+      // Tenta fazer o parse
+      let parsed: any;
+      try {
+        parsed = JSON.parse(cleanText);
+      } catch (parseError: any) {
+        // Se falhar, tenta reparar JSONs truncados
+        console.warn('Initial JSON parse failed, attempting to repair...');
+        cleanText = this.attemptJSONRepair(cleanText);
+        parsed = JSON.parse(cleanText);
+      }
       
       if (type === 'relocation') {
         this.fixRelocationDataTypes(parsed);
@@ -207,11 +261,132 @@ export class GeminiService {
         return relocationAIResponseSchema.parse(parsed);
       }
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to parse JSON response:', error);
-      console.error('Raw text:', text);
-      throw new Error(`Invalid JSON response from Gemini for ${type} plan`);
+      console.error('Raw text length:', text.length);
+      console.error('Raw text (first 500 chars):', text.substring(0, 500));
+      console.error('Raw text (last 500 chars):', text.substring(Math.max(0, text.length - 500)));
+      throw new Error(`Invalid JSON response from Gemini for ${type} plan: ${error.message}`);
     }
+  }
+
+  /**
+   * Tenta reparar JSONs truncados fechando arrays e objetos não fechados
+   */
+  private attemptJSONRepair(jsonText: string): string {
+    let repaired = jsonText.trim();
+    
+    // Remove vírgulas finais antes de fechamentos (pode ajudar em alguns casos)
+    repaired = repaired.replace(/,(\s*[}\]])/g, '$1');
+    
+    // Remove texto após o último } válido se houver (pode ser lixo)
+    const lastBraceIndex = repaired.lastIndexOf('}');
+    if (lastBraceIndex !== -1 && lastBraceIndex < repaired.length - 1) {
+      // Verifica se há texto após o último } que não seja apenas espaços/fechamentos
+      const afterLastBrace = repaired.substring(lastBraceIndex + 1).trim();
+      if (afterLastBrace && !/^[\s}\]\]]*$/.test(afterLastBrace)) {
+        repaired = repaired.substring(0, lastBraceIndex + 1);
+      }
+    }
+    
+    // Conta quantos { e } existem (ignorando os que estão dentro de strings)
+    let openBraces = 0;
+    let closeBraces = 0;
+    let inString = false;
+    let escapeNext = false;
+    
+    for (let i = 0; i < repaired.length; i++) {
+      const char = repaired[i];
+      
+      if (escapeNext) {
+        escapeNext = false;
+        continue;
+      }
+      
+      if (char === '\\') {
+        escapeNext = true;
+        continue;
+      }
+      
+      if (char === '"' && !escapeNext) {
+        inString = !inString;
+        continue;
+      }
+      
+      if (!inString) {
+        if (char === '{') openBraces++;
+        if (char === '}') closeBraces++;
+      }
+    }
+    
+    // Fecha objetos não fechados
+    if (openBraces > closeBraces) {
+      const missingBraces = openBraces - closeBraces;
+      for (let i = 0; i < missingBraces; i++) {
+        repaired += '}';
+      }
+    }
+    
+    // Conta quantos [ e ] existem (ignorando os que estão dentro de strings)
+    let openBrackets = 0;
+    let closeBrackets = 0;
+    inString = false;
+    escapeNext = false;
+    
+    for (let i = 0; i < repaired.length; i++) {
+      const char = repaired[i];
+      
+      if (escapeNext) {
+        escapeNext = false;
+        continue;
+      }
+      
+      if (char === '\\') {
+        escapeNext = true;
+        continue;
+      }
+      
+      if (char === '"' && !escapeNext) {
+        inString = !inString;
+        continue;
+      }
+      
+      if (!inString) {
+        if (char === '[') openBrackets++;
+        if (char === ']') closeBrackets++;
+      }
+    }
+    
+    // Fecha arrays não fechados
+    if (openBrackets > closeBrackets) {
+      const missingBrackets = openBrackets - closeBrackets;
+      // Tenta inserir antes do último }
+      const lastBrace = repaired.lastIndexOf('}');
+      if (lastBrace !== -1) {
+        const beforeLastBrace = repaired.substring(0, lastBrace);
+        const afterLastBrace = repaired.substring(lastBrace);
+        let bracketsToAdd = '';
+        for (let i = 0; i < missingBrackets; i++) {
+          bracketsToAdd += ']';
+        }
+        repaired = beforeLastBrace + bracketsToAdd + afterLastBrace;
+      } else {
+        // Se não há }, adiciona no final
+        for (let i = 0; i < missingBrackets; i++) {
+          repaired += ']';
+        }
+      }
+    }
+    
+    // Remove vírgulas finais novamente (pode ter sido introduzida durante o reparo)
+    repaired = repaired.replace(/,(\s*[}\]])/g, '$1');
+    
+    // Tenta remover propriedades incompletas no final
+    // Se o JSON termina com uma chave sem valor, remove a chave
+    repaired = repaired.replace(/,\s*"[^"]*"\s*:\s*$/, '');
+    repaired = repaired.replace(/,\s*"[^"]*"\s*:\s*\[?\s*$/, '');
+    
+    return repaired;
   }
 
   private fixRelocationDataTypes(data: any): void {
@@ -271,9 +446,10 @@ STRICT REQUIREMENTS:
 1. Research current information about ${destination}
 2. Create exactly ${days} days in the itinerary
 3. All content must be in ENGLISH
-4. Return ONLY valid JSON - no additional text, explanations, or markdown
+4. CRITICAL: Return ONLY valid JSON - no markdown code blocks, no explanations, no text before or after the JSON
 5. Use specific numerical costs (no ranges, use separate min/max)
 6. CRITICAL: For attractions category, use ONLY: "free", "paid", or "optional" - no additional text or descriptions
+7. CRITICAL: Ensure all JSON is complete and properly closed - all arrays and objects must be closed
 
 JSON STRUCTURE REQUIRED:
 {
@@ -343,7 +519,9 @@ JSON STRUCTURE REQUIRED:
   ]
 }
 
-Create the plan for ${destination} with ${days} days and ${budgetLevel} budget. Return ONLY the JSON object.`;
+Create the plan for ${destination} with ${days} days and ${budgetLevel} budget. 
+
+IMPORTANT: Return ONLY the JSON object. Do NOT wrap it in markdown code blocks. Do NOT add any text before or after the JSON. Start directly with { and end with }.`;
   }
 
   private getRelocationPrompt(destination: string): string {
@@ -352,10 +530,11 @@ Create the plan for ${destination} with ${days} days and ${budgetLevel} budget. 
 STRICT REQUIREMENTS:
 1. Research current 2024-2025 information about ${destination}
 2. All content must be in ENGLISH
-3. Return ONLY valid JSON - no additional text, explanations, or markdown
+3. CRITICAL: Return ONLY valid JSON - no markdown code blocks, no explanations, no text before or after the JSON
 4. Provide specific numerical data where possible
 5. CRITICAL: All rate fields (employeeRate, employerRate, vacationDays) must be NUMBERS, not strings
 6. CRITICAL: All percentage and rate values must be numbers (e.g., 8.5 not "8.5")
+7. CRITICAL: Ensure all JSON is complete and properly closed - all arrays and objects must be closed
 
 JSON STRUCTURE REQUIRED:
 {
@@ -472,7 +651,9 @@ JSON STRUCTURE REQUIRED:
   ]
 }
 
-Create the relocation guide for ${destination}. Return ONLY the JSON object.`;
+Create the relocation guide for ${destination}. 
+
+IMPORTANT: Return ONLY the JSON object. Do NOT wrap it in markdown code blocks. Do NOT add any text before or after the JSON. Start directly with { and end with }.`;
   }
 
   private getBudgetContext(level: string): string {
@@ -503,15 +684,7 @@ Create the relocation guide for ${destination}. Return ONLY the JSON object.`;
     
     for (const modelName of fallbackModels) {
       try {
-        const model = this.genAI.getGenerativeModel({ 
-          model: modelName,
-          generationConfig: {
-            temperature: 0.7,
-            topP: 0.8,
-            topK: 40,
-            maxOutputTokens: 4096,
-          },
-        });
+        const model = this.createModelWithConfig(modelName, true);
         
         console.log(`Tentando gerar plano de viagem (streaming) com modelo: ${modelName}`);
         const result = await model.generateContentStream(prompt);
