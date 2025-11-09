@@ -9,11 +9,27 @@ import { env } from '../../env';
 export class GeminiService {
   private genAI: GoogleGenerativeAI;
   private model: any;
+  private modelName: string;
 
   constructor() {
     this.genAI = new GoogleGenerativeAI(env.GOOGLE_API_KEY);
+    
+    // Lista de modelos em ordem de preferência (mais recente primeiro)
+    // Modelos disponíveis: gemini-2.5-flash, gemini-2.5-pro, gemini-1.5-pro, gemini-pro
+    // gemini-1.5-flash pode não estar disponível em todas as regiões/versões da API
+    const preferredModels = [
+      'gemini-2.5-flash',      // Mais rápido e eficiente (2025)
+      'gemini-2.5-pro',        // Mais capaz (2025)
+      'gemini-1.5-pro',        // Versão estável anterior
+      'gemini-1.5-flash',      // Versão rápida anterior (pode não estar disponível)
+      'gemini-pro',            // Modelo clássico (mais compatível)
+    ];
+    
+    // Permite override via variável de ambiente
+    this.modelName = process.env.GEMINI_MODEL || preferredModels[0];
+    
     this.model = this.genAI.getGenerativeModel({ 
-      model: 'gemini-1.5-flash',
+      model: this.modelName,
       generationConfig: {
         temperature: 0.7,
         topP: 0.8,
@@ -23,6 +39,29 @@ export class GeminiService {
     });
   }
 
+  /**
+   * Retorna o nome do modelo atualmente em uso
+   */
+  getCurrentModel(): string {
+    return this.modelName;
+  }
+
+  /**
+   * Lista os modelos disponíveis na API
+   * Útil para debug e verificar quais modelos estão acessíveis
+   */
+  async listAvailableModels(): Promise<string[]> {
+    try {
+      // Nota: A biblioteca @google/generative-ai não expõe diretamente um método listModels
+      // Você pode verificar manualmente no Google AI Studio ou usar a API REST diretamente
+      console.log('Para ver modelos disponíveis, consulte: https://ai.google.dev/api/models');
+      return [];
+    } catch (error) {
+      console.error('Erro ao listar modelos:', error);
+      return [];
+    }
+  }
+
   async generateVacationPlan(
     destination: string, 
     days: number, 
@@ -30,35 +69,115 @@ export class GeminiService {
   ): Promise<VacationAIResponseData> {
     const prompt = this.getVacationPrompt(destination, days, budgetLevel);
     
-    try {
-      const result = await this.model.generateContent(prompt);
-      const response = await result.response;
-      const text = response.text();
-      
-      const jsonData = this.parseAndValidateJSON(text, 'vacation');
-      
-      return jsonData;
-    } catch (error) {
-      console.error('Error generating vacation plan with Gemini:', error);
-      throw new Error('Failed to generate vacation plan');
+    // Lista de fallback models em ordem de preferência
+    const fallbackModels = [
+      this.modelName,
+      'gemini-2.5-flash',
+      'gemini-2.5-pro',
+      'gemini-1.5-pro',
+      'gemini-pro',
+    ].filter((model, index, self) => self.indexOf(model) === index); // Remove duplicatas
+    
+    for (const modelName of fallbackModels) {
+      try {
+        const model = this.genAI.getGenerativeModel({ 
+          model: modelName,
+          generationConfig: {
+            temperature: 0.7,
+            topP: 0.8,
+            topK: 40,
+            maxOutputTokens: 4096,
+          },
+        });
+        
+        console.log(`Tentando gerar plano de viagem com modelo: ${modelName}`);
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const text = response.text();
+        
+        const jsonData = this.parseAndValidateJSON(text, 'vacation');
+        
+        // Atualiza o modelo atual se um fallback funcionou
+        if (modelName !== this.modelName) {
+          console.log(`Modelo ${modelName} funcionou! Atualizando modelo padrão.`);
+          this.modelName = modelName;
+          this.model = model;
+        }
+        
+        return jsonData;
+      } catch (error: any) {
+        // Se for erro 404 (modelo não encontrado), tenta o próximo
+        if (error.status === 404 || error.message?.includes('not found')) {
+          console.warn(`Modelo ${modelName} não disponível, tentando próximo...`);
+          continue;
+        }
+        // Para outros erros, loga e continua tentando
+        console.error(`Erro ao usar modelo ${modelName}:`, error.message);
+        if (modelName === fallbackModels[fallbackModels.length - 1]) {
+          // Último modelo falhou, lança o erro
+          throw new Error(`Failed to generate vacation plan. Todos os modelos falharam. Último erro: ${error.message}`);
+        }
+      }
     }
+    
+    throw new Error('Failed to generate vacation plan: Nenhum modelo disponível');
   }
 
   async generateRelocationPlan(destination: string): Promise<RelocationAIResponseData> {
     const prompt = this.getRelocationPrompt(destination);
     
-    try {
-      const result = await this.model.generateContent(prompt);
-      const response = await result.response;
-      const text = response.text();
-      
-      const jsonData = this.parseAndValidateJSON(text, 'relocation');
-      
-      return jsonData;
-    } catch (error) {
-      console.error('Error generating relocation plan with Gemini:', error);
-      throw new Error('Failed to generate relocation plan');
+    // Lista de fallback models em ordem de preferência
+    const fallbackModels = [
+      this.modelName,
+      'gemini-2.5-flash',
+      'gemini-2.5-pro',
+      'gemini-1.5-pro',
+      'gemini-pro',
+    ].filter((model, index, self) => self.indexOf(model) === index); // Remove duplicatas
+    
+    for (const modelName of fallbackModels) {
+      try {
+        const model = this.genAI.getGenerativeModel({ 
+          model: modelName,
+          generationConfig: {
+            temperature: 0.7,
+            topP: 0.8,
+            topK: 40,
+            maxOutputTokens: 4096,
+          },
+        });
+        
+        console.log(`Tentando gerar plano de relocação com modelo: ${modelName}`);
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const text = response.text();
+        
+        const jsonData = this.parseAndValidateJSON(text, 'relocation');
+        
+        // Atualiza o modelo atual se um fallback funcionou
+        if (modelName !== this.modelName) {
+          console.log(`Modelo ${modelName} funcionou! Atualizando modelo padrão.`);
+          this.modelName = modelName;
+          this.model = model;
+        }
+        
+        return jsonData;
+      } catch (error: any) {
+        // Se for erro 404 (modelo não encontrado), tenta o próximo
+        if (error.status === 404 || error.message?.includes('not found')) {
+          console.warn(`Modelo ${modelName} não disponível, tentando próximo...`);
+          continue;
+        }
+        // Para outros erros, loga e continua tentando
+        console.error(`Erro ao usar modelo ${modelName}:`, error.message);
+        if (modelName === fallbackModels[fallbackModels.length - 1]) {
+          // Último modelo falhou, lança o erro
+          throw new Error(`Failed to generate relocation plan. Todos os modelos falharam. Último erro: ${error.message}`);
+        }
+      }
     }
+    
+    throw new Error('Failed to generate relocation plan: Nenhum modelo disponível');
   }
 
   private parseAndValidateJSON(text: string, type: 'vacation' | 'relocation'): any {
@@ -373,23 +492,64 @@ Create the relocation guide for ${destination}. Return ONLY the JSON object.`;
   ): Promise<VacationAIResponseData> {
     const prompt = this.getVacationPrompt(destination, days, budgetLevel);
     
-    try {
-      const result = await this.model.generateContentStream(prompt);
-      let fullResponse = '';
-      
-      for await (const chunk of result.stream) {
-        const chunkText = chunk.text();
-        fullResponse += chunkText;
+    // Lista de fallback models em ordem de preferência
+    const fallbackModels = [
+      this.modelName,
+      'gemini-2.5-flash',
+      'gemini-2.5-pro',
+      'gemini-1.5-pro',
+      'gemini-pro',
+    ].filter((model, index, self) => self.indexOf(model) === index);
+    
+    for (const modelName of fallbackModels) {
+      try {
+        const model = this.genAI.getGenerativeModel({ 
+          model: modelName,
+          generationConfig: {
+            temperature: 0.7,
+            topP: 0.8,
+            topK: 40,
+            maxOutputTokens: 4096,
+          },
+        });
         
-        if (onChunk) {
-          onChunk(chunkText);
+        console.log(`Tentando gerar plano de viagem (streaming) com modelo: ${modelName}`);
+        const result = await model.generateContentStream(prompt);
+        let fullResponse = '';
+        
+        for await (const chunk of result.stream) {
+          const chunkText = chunk.text();
+          fullResponse += chunkText;
+          
+          if (onChunk) {
+            onChunk(chunkText);
+          }
+        }
+        
+        const jsonData = this.parseAndValidateJSON(fullResponse, 'vacation');
+        
+        // Atualiza o modelo atual se um fallback funcionou
+        if (modelName !== this.modelName) {
+          console.log(`Modelo ${modelName} funcionou! Atualizando modelo padrão.`);
+          this.modelName = modelName;
+          this.model = model;
+        }
+        
+        return jsonData;
+      } catch (error: any) {
+        // Se for erro 404 (modelo não encontrado), tenta o próximo
+        if (error.status === 404 || error.message?.includes('not found')) {
+          console.warn(`Modelo ${modelName} não disponível, tentando próximo...`);
+          continue;
+        }
+        // Para outros erros, loga e continua tentando
+        console.error(`Erro ao usar modelo ${modelName}:`, error.message);
+        if (modelName === fallbackModels[fallbackModels.length - 1]) {
+          throw new Error(`Failed to generate vacation plan with streaming. Todos os modelos falharam. Último erro: ${error.message}`);
         }
       }
-      
-      return this.parseAndValidateJSON(fullResponse, 'vacation');
-    } catch (error) {
-      console.error('Error with streaming vacation plan:', error);
-      throw new Error('Failed to generate vacation plan with streaming');
     }
+    
+    throw new Error('Failed to generate vacation plan with streaming: Nenhum modelo disponível');
   }
 }

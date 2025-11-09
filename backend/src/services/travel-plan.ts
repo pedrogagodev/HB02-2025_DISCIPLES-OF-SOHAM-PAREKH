@@ -34,6 +34,9 @@ export class TravelPlanService {
       }
 
       const generationTime = Date.now() - startTime;
+      
+      // Obtém o modelo que foi realmente usado (pode ter mudado devido ao fallback)
+      const modelUsed = this.geminiService.getCurrentModel();
 
       const savedPlan = await this.travelPlanRepository.create({
         clerkUserId: userId,
@@ -45,7 +48,7 @@ export class TravelPlanService {
         itinerary: structuredData,
         costSummary: structuredData.costs || structuredData.costOfLiving,
         additionalInfo: { 
-          model: "gemini-2.5-pro",
+          model: modelUsed,
           sdk: "@google/generative-ai",
           generationTime,
         },
