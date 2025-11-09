@@ -1,30 +1,38 @@
-app = "travel-wise"
-primary_region = "gru"  # ou "iad", "sjc", etc.
+# fly.toml app configuration file generated for travel-wise on 2025-11-08T23:12:16-03:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'travel-wise'
+primary_region = 'gru'
 
 [build]
 
 [env]
-  PORT = "8080"
-  NODE_ENV = "production"
+  NODE_ENV = 'production'
+  PORT = '8080'
+
+[deploy]
+  release_command = "npx prisma migrate deploy"
 
 [http_service]
   internal_port = 8080
   force_https = true
-  auto_stop_machines = true
+  auto_stop_machines = 'stop'
   auto_start_machines = true
   min_machines_running = 0
-  processes = ["app"]
+  processes = ['app']
 
-[[http_service.checks]]
-  interval = "10s"
-  timeout = "2s"
-  grace_period = "5s"
-  method = "GET"
-  path = "/api/"
-  protocol = "http"
-  tls_skip_verify = false
+  [[http_service.checks]]
+    interval = '10s'
+    timeout = '2s'
+    grace_period = '5s'
+    method = 'GET'
+    path = '/api/'
+    protocol = 'http'
+    tls_skip_verify = false
 
 [[vm]]
-  cpu_kind = "shared"
+  cpu_kind = 'shared'
   cpus = 1
   memory_mb = 256

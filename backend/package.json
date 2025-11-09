@@ -6,6 +6,7 @@
 		"check-types": "tsc -b",
 		"compile": "bun build --compile --minify --sourcemap --bytecode ./src/index.ts --outfile server",
 		"dev": "tsx watch src/index.ts",
+		"start": "node dist/src/index.js",
 		"start:prod": "node dist/src/index.js",
 		"db:push": "prisma db push",
 		"db:studio": "prisma studio",
