@@ -28,15 +28,29 @@ WORKDIR /app
 COPY package*.json ./
 COPY prisma ./prisma/
 
-# Install production dependencies AND prisma CLI (needed for migrations)
-# We need prisma CLI for release_command (migrations)
-RUN npm ci --only=production && \
-    npm install prisma@^6.13.0 --save-dev --no-save
+# Install production dependencies first
+RUN npm ci --only=production
+
+# Copy Prisma CLI from builder stage
+COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
+COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+
+# Copy Prisma binary
+RUN mkdir -p ./node_modules/.bin
+COPY --from=builder /app/node_modules/.bin/prisma ./node_modules/.bin/prisma
+
+# Install Prisma CLI dependencies that are needed for migrations
+# These are required by @prisma/config which is used by prisma CLI
+# We install them explicitly to ensure they're available in production
+RUN npm install --no-save --production=false \
+    read-package-up@^11.0.0 \
+    read-pkg@^9.0.0 \
+    find-up-simple@^1.0.1 \
+    c12@^3.1.0 \
+    @prisma/config@^6.13.0
 
 # Copy the generated Prisma Client from builder stage
-# This includes the binary and generated code
 COPY --from=builder /app/src/generated ./src/generated
-COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 
 # Copy built application
 COPY --from=builder /app/dist ./dist
