@@ -24,39 +24,74 @@ const api = axios.create({
 const getAuthToken = async (): Promise<string | null> => {
 	try {
 		if (typeof window !== 'undefined' && window.Clerk?.session) {
-			await new Promise(resolve => setTimeout(resolve, 500));
-			
 			const token = await window.Clerk.session.getToken();
 			return token;
 		}
 		return null;
 	} catch (error) {
-		throw new Error("Error getting auth token");
+		console.warn("Failed to get auth token:", error);
+		return null;
 	}
 };
 
-api.interceptors.request.use(async (config) => {
-	try {
-		// Wait for Clerk to initialize
-		await new Promise(resolve => setTimeout(resolve, 1000));
-		
-		const token = await getAuthToken();
-		if (token) {
-			config.headers.Authorization = `Bearer ${token}`;
+api.interceptors.request.use(
+	async (config) => {
+		try {
+			// Only wait if Clerk is not yet available
+			if (typeof window !== 'undefined' && !window.Clerk?.session) {
+				// Wait a bit for Clerk to initialize, but don't wait too long
+				await new Promise(resolve => setTimeout(resolve, 500));
+			}
+			
+			const token = await getAuthToken();
+			if (token) {
+				config.headers.Authorization = `Bearer ${token}`;
+			}
+		} catch (error) {
+			// Don't throw - just log and continue without token
+			// The server will handle authentication errors
+			console.warn("Error setting auth token:", error);
 		}
-	} catch (error) {
-		throw new Error("Error getting auth token");
+		return config;
+	},
+	(error) => {
+		return Promise.reject(error);
 	}
-	return config;
-});
+);
 
 api.interceptors.response.use(
 	(response) => response,
 	(error) => {
-		if (error.response?.status === 401) {
-			throw new Error("Invalid auth token");
+		// Handle network errors (CORS, connection refused, etc.)
+		if (!error.response) {
+			const message = error.message || "Network error";
+			console.error("Network error:", message);
+			return Promise.reject(new Error(message));
 		}
-		throw new Error("Error getting auth token");
+
+		// Handle HTTP errors
+		const status = error.response.status;
+		const data = error.response.data;
+
+		if (status === 401) {
+			return Promise.reject(new Error(data?.message || "Authentication required"));
+		}
+
+		if (status === 403) {
+			return Promise.reject(new Error(data?.message || "Access forbidden"));
+		}
+
+		if (status === 404) {
+			return Promise.reject(new Error(data?.message || "Resource not found"));
+		}
+
+		if (status === 503) {
+			return Promise.reject(new Error(data?.message || "Service temporarily unavailable"));
+		}
+
+		// For other errors, use the error message from the server or a generic message
+		const message = data?.message || data?.error || `Request failed with status ${status}`;
+		return Promise.reject(new Error(message));
 	}
 );
 

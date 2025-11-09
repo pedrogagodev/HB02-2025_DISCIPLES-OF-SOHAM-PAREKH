@@ -41,7 +41,7 @@ export class TravelPlanController {
         message: 'Travel plan created successfully'
       });
     } catch (error) {
-      ErrorHandler.handle(error, res, 'create plan');
+      ErrorHandler.handle(error, res, 'create plan', req);
     }
   }
 
@@ -69,7 +69,7 @@ export class TravelPlanController {
         message: 'Travel plans retrieved successfully'
       });
     } catch (error) {
-      ErrorHandler.handle(error, res, 'get user plans');
+      ErrorHandler.handle(error, res, 'get user plans', req);
     }
   }
 
@@ -104,7 +104,7 @@ export class TravelPlanController {
         message: 'Travel plan retrieved successfully'
       });
     } catch (error) {
-      ErrorHandler.handle(error, res, 'get plan by id');
+      ErrorHandler.handle(error, res, 'get plan by id', req);
     }
   }
 
@@ -125,7 +125,7 @@ export class TravelPlanController {
         message: 'Travel plan updated successfully'
       });
     } catch (error) {
-      ErrorHandler.handle(error, res, 'update plan');
+      ErrorHandler.handle(error, res, 'update plan', req);
     }
   }
 
@@ -146,7 +146,7 @@ export class TravelPlanController {
         message: 'Travel plan deleted successfully'
       });
     } catch (error) {
-      ErrorHandler.handle(error, res, 'delete plan');
+      ErrorHandler.handle(error, res, 'delete plan', req);
     }
   }
 }
