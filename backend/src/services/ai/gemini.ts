@@ -4,13 +4,14 @@ import {
   VacationAIResponseData,
   RelocationAIResponseData,
 } from '../../interfaces/travel-plan';
+import { env } from '../../env';
 
 export class GeminiService {
   private genAI: GoogleGenerativeAI;
   private model: any;
 
   constructor() {
-    this.genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
+    this.genAI = new GoogleGenerativeAI(env.GOOGLE_API_KEY);
     this.model = this.genAI.getGenerativeModel({ 
       model: 'gemini-1.5-flash',
       generationConfig: {

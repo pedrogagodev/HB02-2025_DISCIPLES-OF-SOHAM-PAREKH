@@ -7,7 +7,7 @@ const envSchema = z.object({
 		.default("development"),
 	PORT: z.coerce.number().default(3000),
 	DATABASE_URL: z.string().url(),
-	CORS_ORIGIN: z.string().url(),
+	CORS_ORIGIN: z.string().url().optional(),
 	CLERK_SECRET_KEY: z.string(),
 	CLERK_PUBLISHABLE_KEY: z.string(),
 	GOOGLE_API_KEY: z.string(),

@@ -5,12 +5,13 @@ import express, {
 } from "express";
 import travelPlansRoutes from "./travel-plans";
 import { clerkMiddleware } from "@clerk/express";
+import { env } from "../env";
 
 const setupRoutes = (app: Express) => {
 	app.use(express.json());
 	app.use(
 		cors({
-			origin: [process.env.FRONTEND_URL || "http://localhost:5173"],
+			origin: env.CORS_ORIGIN ? [env.CORS_ORIGIN] : [env.FRONTEND_URL],
 			methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
 			credentials: true,
 		}),
