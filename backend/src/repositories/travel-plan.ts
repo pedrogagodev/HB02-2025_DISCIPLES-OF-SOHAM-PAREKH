@@ -4,6 +4,15 @@ import { TravelPlanEntity, TravelPlanRequest } from "../interfaces/travel-plan";
 export class TravelPlanRepository {
   constructor(private prisma: PrismaClient) {}
 
+  // Helper function to convert Prisma result (null) to Entity type (undefined)
+  private toEntity(prismaResult: any): TravelPlanEntity {
+    return {
+      ...prismaResult,
+      budget: prismaResult.budget ?? undefined,
+      days: prismaResult.days ?? undefined,
+    };
+  }
+
   async create(data: {
     clerkUserId: string;
     destination: string;
@@ -15,7 +24,7 @@ export class TravelPlanRepository {
     costSummary?: any;
     additionalInfo?: any;
   }): Promise<TravelPlanEntity> {
-    return this.prisma.travelPlan.create({
+    const result = await this.prisma.travelPlan.create({
       data: {
         clerkUserId: data.clerkUserId,
         destination: data.destination,
@@ -28,10 +37,11 @@ export class TravelPlanRepository {
         additionalInfo: data.additionalInfo,
       },
     });
+    return this.toEntity(result);
   }
 
   async findByUserId(clerkUserId: string): Promise<TravelPlanEntity[]> {
-    return this.prisma.travelPlan.findMany({
+    const results = await this.prisma.travelPlan.findMany({
       where: { clerkUserId },
       orderBy: { createdAt: 'desc' },
       select: {
@@ -49,12 +59,14 @@ export class TravelPlanRepository {
         itinerary: false,
       },
     });
+    return results.map(result => this.toEntity(result));
   }
 
   async findByIdAndUserId(id: string, clerkUserId: string): Promise<TravelPlanEntity | null> {
-    return this.prisma.travelPlan.findFirst({
+    const result = await this.prisma.travelPlan.findFirst({
       where: { id, clerkUserId },
     });
+    return result ? this.toEntity(result) : null;
   }
 
   async updateByIdAndUserId(
@@ -62,19 +74,21 @@ export class TravelPlanRepository {
     clerkUserId: string, 
     data: Partial<TravelPlanRequest>
   ): Promise<TravelPlanEntity> {
-    return this.prisma.travelPlan.update({
+    const result = await this.prisma.travelPlan.update({
       where: { id },
       data: {
         ...data,
         updatedAt: new Date(),
       },
     });
+    return this.toEntity(result);
   }
 
   async deleteByIdAndUserId(id: string, clerkUserId: string): Promise<TravelPlanEntity> {
-    return this.prisma.travelPlan.delete({
+    const result = await this.prisma.travelPlan.delete({
       where: { id, clerkUserId },
     });
+    return this.toEntity(result);
   }
 
   async existsByIdAndUserId(id: string, clerkUserId: string): Promise<boolean> {
