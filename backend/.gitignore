@@ -52,4 +52,6 @@ lerna-debug.log*
 next-env.d.ts
 
 
+# Prisma generated files
+src/generated/
 generated/

@@ -14,7 +14,7 @@ RUN npm ci
 COPY . .
 
 # Generate Prisma Client (clean any existing generation first)
-RUN rm -rf node_modules/.prisma && npx prisma generate
+RUN rm -rf src/generated && npx prisma generate
 
 # Build TypeScript
 RUN npm run build
@@ -35,7 +35,7 @@ RUN npm ci --only=production && \
 
 # Copy the generated Prisma Client from builder stage
 # This includes the binary and generated code
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/src/generated ./src/generated
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 
 # Copy built application

@@ -18,7 +18,7 @@
 		"prisma:migrate": "prisma migrate deploy",
 		"prisma:seed": "prisma db seed",
 		"prisma:generate": "prisma generate",
-		"deploy": "npm run prisma:generate && npm run prisma:migrate && npm run build"	
+		"deploy": "npm run prisma:generate && npm run prisma:migrate && npm run build"
 	},
 	"dependencies": {
 		"@clerk/express": "^1.7.14",
