@@ -63,9 +63,6 @@ const setupRoutes = (app: Express) => {
 	// Apply CORS middleware before other middleware
 	app.use(cors(corsOptions));
 
-	// Handle preflight requests explicitly
-	app.options("*", cors(corsOptions));
-
 	app.use(express.json());
 
 	// Health check endpoint (no auth required, for Fly.io health checks)
@@ -78,6 +75,7 @@ const setupRoutes = (app: Express) => {
 
 	const appRouter = Router();
 	
+	// Apply Clerk middleware to protect all routes under /api
 	appRouter.use(clerkMiddleware());
 
 	appRouter.use('/travel-plans', travelPlansRoutes);
